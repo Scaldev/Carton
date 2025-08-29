@@ -1,0 +1,11 @@
+(test
+ (name test_words)
+ (libraries alcotest Carton))
+
+(test
+ (name test_re)
+ (libraries alcotest Carton))
+
+(test
+ (name test_auto)
+ (libraries alcotest Carton))

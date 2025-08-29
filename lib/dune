@@ -1,0 +1,6 @@
+(include_subdirs qualified)
+(library
+ (name Carton)
+ (public_name Carton)
+ (wrapped false)
+ (instrumentation (backend bisect_ppx)))

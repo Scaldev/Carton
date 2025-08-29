@@ -1,0 +1,4 @@
+(executable
+ (public_name Carton)
+ (name main)
+ (libraries Carton))

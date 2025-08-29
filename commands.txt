@@ -1,0 +1,11 @@
+Compile:
+    `dune build @doc`
+
+Run:
+    `dune exec Carton`
+
+Test:
+    `bisect-clean-test`
+
+Compile dot file to svg:
+    `dot -Tsvg resources/dot/my_file.dot` > resources/dot/my_file_out.svg
