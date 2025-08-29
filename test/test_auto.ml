@@ -1,7 +1,7 @@
 open Rational_language.Auto
 
 (*****************************************************************************)
-(*                              dummy automaton                              *)
+(*                              dummy automata                               *)
 (*****************************************************************************)
 
 let example_auto_0 () : auto =
@@ -390,4 +390,4 @@ let format_tests tests =
     (name, List.map (Alcotest.test_case "" `Quick) fs)
   ) tests
 
-let () = Alcotest.run "Rational language - automatons" (format_tests tests) 
+let () = Alcotest.run "Rational language - automata" (format_tests tests)

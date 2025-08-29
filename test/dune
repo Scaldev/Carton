@@ -9,3 +9,7 @@
 (test
  (name test_auto)
  (libraries alcotest Carton))
+
+(test
+ (name test_auto_alg)
+ (libraries alcotest Carton))
