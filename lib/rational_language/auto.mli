@@ -55,9 +55,11 @@ val is_final : auto -> int -> bool
 val has_epsilon : auto -> bool
 
 (**
-  [is_det a] returns [true] iff [a] is a determistic automaton,
-  i.e. [not (has_epsilon a)] and for all states [p], [q], [q'] and for char
-  [c], [p -c-> q] and [p -c-> q'] implies [q = q'].
+  [is_det a] returns [true] iff [a] is a determistic automaton, i.e. :
+    - there is exactly one initial state [0] ;
+    - [not (has_epsilon a)] ;
+    - for all states [p], [q], [q'] and for char [c], [p -c-> q] and
+    [p -c-> q'] implies [q = q'].
 *)
 val is_det : auto -> bool
 

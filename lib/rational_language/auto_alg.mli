@@ -1,13 +1,6 @@
 (*****************************************************************************)
-(*                            Automaton structure                            *)
+(*                            Pruning and cleaning                           *)
 (*****************************************************************************)
-
-(**
-    [forward auto] returns a [(accs, naccs)] pair, such that [accs] is the list
-    of accessible states in [auto], and [naccs] the remaining unaccessibles
-    states.
-*)
-val forward : Auto.auto -> int list * int list
 
 (**
     [is_empty auto] returns [true] iff the language recognized by [auto] is the
@@ -16,22 +9,38 @@ val forward : Auto.auto -> int list * int list
 val is_empty : Auto.auto -> bool
 
 (**
-    [backward auto] returns a [(coaccs, ncoaccs)] pair, such that [coaccs] is
-    the list of co-accessibles states in [auto], and [ncoaccs] the remaining
-    non co-accessibles states.
-
-*)
-val backward : Auto.auto -> int list * int list
-
-(**
     [clean auto] returns the pruned automaton of [auto].
 *)
 val clean : Auto.auto -> Auto.auto
 
 (**
-    [eps_closure auto] returns an array giving for each state its ε-closure.
+    [remove_eps_trans auto] returns an automaton [auto'] of the same language
+    that [auto] without any ε-transition.
 *)
-val eps_closure : Auto.auto -> int list array
+val remove_eps_trans : Auto.auto -> Auto.auto
+
+(*****************************************************************************)
+(*                                  Acceptance                               *)
+(*****************************************************************************)
+
+(**
+    {b Precondition:} [auto] is deterministic.
+
+    [accept_dfa auto s] returns [true] iff [s] is accepted by [auto].
+
+    {b Complexity:} in [O(|s|)].
+*)
+val accept_dfa : Auto.auto -> string -> bool
+
+(**
+    {b Precondition:} [auto] has no ε-transition.
+
+    [accept_nfa auto s] returns [true] iff [s] is accepted by [auto].
+
+    {b Complexity:} in [O((n + |ẟ|) * |s|)], where [|ẟ|] is the
+    number of transitions in [auto].
+*)
+val accept_nfa : Auto.auto -> string -> bool
 
 (*****************************************************************************)
 (*                     Automata and rational expressions                     *)

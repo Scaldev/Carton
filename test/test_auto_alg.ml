@@ -51,6 +51,7 @@ let example_auto_2 () : auto =
   add_trans auto 1 'a' 0;
   auto
 
+
 let example_auto_3 () : auto =
   (*
    -> [0] <-a-> [1]
@@ -61,6 +62,7 @@ let example_auto_3 () : auto =
   *)
   let auto = create 4 in
   set_initial auto 0;
+  set_initial auto 2;
   set_final auto 3;
   add_trans auto 0 'a' 1;
   add_trans_eps auto 0 2;
@@ -69,27 +71,84 @@ let example_auto_3 () : auto =
   add_trans_eps auto 3 0;
   auto
 
+let example_auto_4 () : auto =
+  (*
+  Automaton that recognizes (a|b)*ba
+
+      /a\      /b\
+      \ v      \ v
+   -> [0] -b-> [1] -a-> [|2|]
+        ^        ^--b--/  |
+         \------a--------/
+  *)
+  let auto = create 3 in
+  set_initial auto 0;
+  set_final auto 2;
+  add_trans auto 0 'a' 0;
+  add_trans auto 0 'b' 1;
+  add_trans auto 1 'a' 2;
+  add_trans auto 1 'b' 1;
+  add_trans auto 2 'a' 0;
+  add_trans auto 2 'b' 1;
+  auto
+
+
+let example_auto_5 () : auto =
+  (*
+   -> [0] <-a-> [1] -b-> [|2|]
+      / ^
+      \a/   
+  *)
+  let auto = create 3 in
+  set_initial auto 0;
+  set_final auto 2;
+  add_trans auto 0 'a' 0;
+  add_trans auto 0 'a' 1;
+  add_trans auto 1 'a' 0;
+  add_trans auto 1 'b' 2;
+  auto
+
 (*****************************************************************************)
-(*                                  forward                                  *)
+(*                                accept_dfa                                 *)
 (*****************************************************************************)
 
-let test_forward_0 () =
-  let a = example_auto_0 () in
-  let (expected_accs, expected_naccs) = ([0;1;2;3], []) in
-  let (obtained_accs, obtained_naccs) = forward a in
-  Alcotest.(check (list int)) "" expected_accs obtained_accs;
-  Alcotest.(check (list int)) "" expected_naccs obtained_naccs
+let test_accept_dfa_0 () =
+  let a = example_auto_4 () in
+  let expected = false in
+  let obtained = accept_dfa a (String.init 10_000 (fun i -> if i mod 2 = 0 then 'a' else 'b')) in
+  Alcotest.(check bool) "" expected obtained
 
-let test_forward_1 () =
-  let a = example_auto_1 () in
-  let (expected_accs, expected_naccs) = ([0;1;2], [3]) in
-  let (obtained_accs, obtained_naccs) = forward a in
-  Alcotest.(check (list int)) "" expected_accs obtained_accs;
-  Alcotest.(check (list int)) "" expected_naccs obtained_naccs
+let test_accept_dfa_1 () =
+  let a = example_auto_4 () in
+  let expected = true in
+  let obtained = accept_nfa a (String.init 10_000 (fun i -> if i mod 2 = 0 then 'b' else 'a')) in
+  Alcotest.(check bool) "" expected obtained
 
-let tests_forward = "forward", [
-  test_forward_0;
-  test_forward_1
+let tests_accept_dfa = "accept_dfa", [
+  test_accept_dfa_0;
+  test_accept_dfa_1
+]
+
+
+(*****************************************************************************)
+(*                                accept_nfa                                 *)
+(*****************************************************************************)
+
+let test_accept_nfa_0 () =
+  let a = example_auto_5 () in
+  let expected = false in
+  let obtained = accept_nfa a (String.make 10_000 'a') in
+  Alcotest.(check bool) "" expected obtained
+
+let test_accept_nfa_1 () =
+  let a = example_auto_5 () in
+  let expected = true in
+  let obtained = accept_nfa a (String.make 10_000 'a' ^ "b") in
+  Alcotest.(check bool) "" expected obtained
+
+let tests_accept_nfa = "accept_nfa", [
+  test_accept_nfa_0;
+  test_accept_nfa_1
 ]
 
 (*****************************************************************************)
@@ -111,29 +170,6 @@ let test_is_empty_1 () =
 let tests_is_empty = "is_empty", [
   test_is_empty_0;
   test_is_empty_1
-]
-
-(*****************************************************************************)
-(*                                  backward                                 *)
-(*****************************************************************************)
-
-let test_backward_0 () =
-  let a = example_auto_0 () in
-  let (expected_accs, expected_naccs) = ([0;1;2;3], []) in
-  let (obtained_accs, obtained_naccs) = backward a in
-  Alcotest.(check (list int)) "" expected_accs obtained_accs;
-  Alcotest.(check (list int)) "" expected_naccs obtained_naccs
-
-let test_backward_1 () =
-  let a = example_auto_1 () in
-  let (expected_accs, expected_naccs) = ([0;1;3], [2]) in
-  let (obtained_accs, obtained_naccs) = backward a in
-  Alcotest.(check (list int)) "" expected_accs obtained_accs;
-  Alcotest.(check (list int)) "" expected_naccs obtained_naccs
-
-let tests_backward = "backward", [
-  test_backward_0;
-  test_backward_1
 ]
 
 (*****************************************************************************)
@@ -163,16 +199,37 @@ let tests_clean = "clean", [
 ]
 
 (*****************************************************************************)
-(*                                eps_closure                                *)
+(*                                remove_eps_trans                           *)
 (*****************************************************************************)
 
-let test_eps_closure_0 () =
-  let obtained = eps_closure (example_auto_3 ()) in
-  let expected = [| [ 0; 2 ] ; [ 1 ] ; [ 2 ] ; [ 0 ; 2 ; 3 ] |] in
-  Alcotest.(check (array (list int))) "" expected obtained
+let test_remove_eps_trans_0 () =
+  print (Format.std_formatter) (example_auto_3 ()) ;
+  let a = remove_eps_trans (example_auto_3 ()) in
+  let a' = create 4 in
+  set_initial a' 0;
+  set_initial a' 2;
+  set_final a' 3;
+  add_trans a' 0 'a' 1;
+  add_trans a' 1 'a' 0;
+  add_trans a' 0 'a' 3;
+  add_trans a' 2 'a' 3;
+  add_trans a' 3 'a' 1;
+  add_trans a' 3 'a' 3;
+  print (Format.std_formatter) a ;
+  print (Format.std_formatter) a' ;
+  (*
+   -> [0] <-a-> [1]       -> [0] <-a->  [1]
+       | ^                    ^  \       ^
+       ε  \-ε-        ==>     a   --a-\  a
+       v      \               |        v |
+   -> [2] -a-> [|3|]      -> [2]  -a-> [|3|]
+  *)
+  let expected = true in
+  let obtained = eq a a' in
+  Alcotest.(check bool) "" expected obtained
 
-let tests_eps_closure = "eps_closure", [
-  test_eps_closure_0
+let tests_remove_eps_trans = "remove_eps_trans", [
+  test_remove_eps_trans_0
 ]
 
 (*****************************************************************************)
@@ -338,11 +395,11 @@ let tests_berry_sethi = "berry_sethi", [
 (*****************************************************************************)
 
 let tests = [
-  tests_forward;
   tests_is_empty;
-  tests_backward;
   tests_clean;
-  tests_eps_closure;
+  tests_remove_eps_trans;
+  tests_accept_dfa;
+  tests_accept_nfa;
   tests_thompson;
   tests_berry_sethi
 ]
