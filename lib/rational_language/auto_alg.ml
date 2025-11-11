@@ -3,42 +3,40 @@ open Auto
 let (<<) = Fun.compose
 
 (*****************************************************************************)
-(*                                    Utils                                  *)
+(*                                                                           *)
+(*                                    UTILS                                  *)
+(*                                                                           *)
+(*****************************************************************************)
+
+(*****************************************************************************)
+(*                                    lists                                  *)
 (*****************************************************************************)
 
 (**
   [range a b] returns the list [a ; a+1 ; ...; b-1].
   If [b <= a], returns the empty list.
 *)
-let range (a: int) (b: int) =
+let range (a: int) (b: int) : int list =
   let n = max 0 (b - a) in
   List.init n (fun i -> a + i)
-
-(**
-  [exists_i f arr] returns [f 0 arr.(0) || ... || f (n-1) arr.(n-1)],
-  where [n = |arr|].
-*)
-let exists_i (f: int -> 'a -> bool) (arr: 'a array) : bool =
-  let i = ref (-1) in
-  Array.exists (fun a -> incr i ; f !i a) arr
 
 (**
   {b Precondition:} [xs] and [ys] are sorted using [<] ordering,
   and don't contain any duplicates.
 
-  [union xs ys] returns a sorted list of the elements from
+  [union_list xs ys] returns a sorted list of the elements from
   [xs] and [ys] without any duplicates.
 
   {b Complexity:} in [O(n)] time, [n] being the length of the result.
 *)
-let rec union (xs: int list) (ys: int list): int list =
+let rec union_list (xs: int list) (ys: int list): int list =
   match xs, ys with
   | [], _ -> ys
   | _, [] -> xs
   | u :: us, v :: vs ->
-    if      u = v then u :: union us vs
-    else if u < v then u :: union us ys
-    else               v :: union xs vs
+    if      u = v then u :: union_list us vs
+    else if u < v then u :: union_list us ys
+    else               v :: union_list xs vs
 
 (**
   [set_power xs n] returns a list of all possible lists [ps] of length [<= n]
@@ -57,10 +55,22 @@ let rec set_power (xs: 'a list) (n: int) : 'a list list =
     let parts = set_power xs (n-1) in
     let singletons = List.map (fun x -> [x]) xs in
     let others = xs
-    |> List.map (fun x -> List.map (fun part -> x :: part) parts)
-    |> List.flatten
+      |> List.map (fun x -> List.map (fun part -> x :: part) parts)
+      |> List.flatten
     in
     [] :: singletons @ others
+
+(*****************************************************************************)
+(*                                    arrays                                 *)
+(*****************************************************************************)
+
+(**
+  [exists_i f arr] returns [f 0 arr.(0) || ... || f (n-1) arr.(n-1)],
+  where [n = |arr|].
+*)
+let exists_i (f: int -> 'a -> bool) (arr: 'a array) : bool =
+  let i = ref (-1) in
+  Array.exists (fun a -> incr i ; f !i a) arr
 
 (**
   [split_on_bool arr] returns a [(trues, falses)] pair of lists, such that:
@@ -73,6 +83,10 @@ let split_on_bool (arr: bool array) : int list * int list =
   let trues  = List.filter (Array.get arr) ids in
   let falses = List.filter (not << Array.get arr) ids in
   (trues, falses)
+
+(*****************************************************************************)
+(*                                     DFS                                   *)
+(*****************************************************************************)
 
 (**
   [dfs n before succs after u] executes a depth-first search on a graph of [n]
@@ -93,11 +107,21 @@ let dfs (n: int) (before: int -> unit) (succs: int -> int list) (after: int * in
     )
   in visit u0
 
+(**
+  [dfs_iter succs after init] calls [dfs_iter] to each successor [v] of a node
+  [u] recursively, starting with [u = init], then call [after u v].
+*)
 let dfs_iter (succs: 'a -> 'a list) (after: 'a -> 'a -> unit) (init: 'a) : unit =
   let rec loop (u: 'a) : unit =
     List.iter (fun v -> loop v ; after u v) (succs u)
   in loop init
-  
+
+(*****************************************************************************)
+(*                                                                           *)
+(*                             AUTOMATON STRUCTURE                           *)
+(*                                                                           *)
+(*****************************************************************************)
+
 (*****************************************************************************)
 (*                             forward & backward                            *)
 (*****************************************************************************)
@@ -157,6 +181,72 @@ let backward (auto: auto) : int list * int list =
   List.iter dfs_start_at finals;
   split_on_bool visited
 
+(*****************************************************************************)
+(*                                     is_clean                              *)
+(*****************************************************************************)
+
+let is_clean (auto: auto) : bool =
+  let _, naccs = forward auto in
+  let _, ncoaccs = backward auto in
+  List.length naccs = 0 && List.length ncoaccs = 0
+
+(*****************************************************************************)
+(*                                  is_complete                              *)
+(*****************************************************************************)
+
+(**
+  [trans_sybmols auto p] returns the list of chararacters [a] such that there
+  exists [q] in [auto] such that [p -a-> q], is alphabetical order.
+*)
+let trans_symbols (auto: auto) (p: int) : char list =
+  trans_all_opt auto p
+  |> List.map fst
+  |> List.filter ((<>) None)
+  |> List.map Option.get
+  |> List.sort_uniq Char.compare
+
+(**
+  [is_complete_state sigma auto p] returns [true] iff for all [a] in [sigma],
+  there exists a state [q] in [auto] such that [p -a-> q].
+*)
+let rec is_complete_state (sigma: char list) (auto: auto) (p: int) : bool =
+  if p = size auto then true
+  else if sigma <> trans_symbols auto p then false
+  else is_complete_state sigma auto (p+1)
+
+let is_complete (sigma: char list) (auto: auto) : bool =
+  let ps = range 0 (size auto) in
+  List.for_all (is_complete_state sigma auto) ps
+
+(*****************************************************************************)
+(*                               is_semi_normalized                          *)
+(*****************************************************************************)
+
+let is_semi_normalized (auto: auto) : bool =
+  let ps = range 0 (size auto) in
+  let inits        = List.filter (is_initial auto) ps in
+  let no_init_succ = List.for_all (((<>) 0) << snd) << (trans_all_opt auto) in
+  List.length inits = 1 && List.for_all no_init_succ ps
+
+(*****************************************************************************)
+(*                                 is_normalized                             *)
+(*****************************************************************************)
+
+let is_normalized (auto: auto) : bool =
+  let ps     = range 0 (size auto) in
+  let finals = List.filter (is_final auto) ps in
+  print_string (string_of_bool (is_semi_normalized auto)) ;
+  print_string (string_of_bool (List.length finals = 1)) ;
+  print_string (string_of_bool (List.is_empty (trans_all_opt auto (List.hd finals)))) ;
+  is_semi_normalized auto
+  && List.length finals = 1 
+  && List.is_empty (trans_all_opt auto (List.hd finals))
+
+(*****************************************************************************)
+(*                                                                           *)
+(*                                  MODIFYING                                *)
+(*                                                                           *)
+(*****************************************************************************)
 
 (*****************************************************************************)
 (*                                    clean                                  *)
@@ -166,28 +256,6 @@ let clean (auto: auto) : auto =
   let (_, naccs) = forward auto in
   let (_, ncoaccs) = backward auto in
   Auto.remove_states auto (naccs @ ncoaccs)
-
-(*****************************************************************************)
-(*                                  complete                                 *)
-(*****************************************************************************)
-
-let complete (sigma: char list) (auto: auto) : auto =
-
-  let sigma = List.sort_uniq Char.compare sigma in
-  let n = size auto in
-  let auto' = create (n + 1) in
-  let bottom = n in
-
-  for p = 0 to n - 1 do
-    if is_initial auto p then set_initial auto' p ;
-    if is_final   auto p then set_final   auto' p ;
-    List.iter (fun c ->
-      match trans auto p c with
-      | [] -> add_trans auto p c bottom ;
-      | qs -> List.iter (add_trans auto' p c) qs
-    ) sigma
-  done ;
-  auto'
 
 (*****************************************************************************)
 (*                              remove_eps_trans                             *)
@@ -207,7 +275,7 @@ let eps_closure (auto: auto) : int list array =
   *)
   let before p     = visited.(p) <- [ p ] in
   let succs        = Auto.trans_eps auto in
-  let after (p, q) = visited.(p) <- union visited.(p) visited.(q) in
+  let after (p, q) = visited.(p) <- union_list visited.(p) visited.(q) in
   let dfs_start_at = dfs n before succs after in
 
   List.iter dfs_start_at (range 0 n) ;
@@ -231,18 +299,14 @@ let remove_eps_trans (auto: auto) : auto =
   let closures = eps_closure auto in
 
   for p = 0 to n-1 do
-
     if is_initial auto p then set_initial auto' p;
     if is_final   auto p then set_final   auto' p;
-
     (* if [p -a-> q] in [auto], then add [p -a-> q] in [auto'] *)
     add_trans_no_eps auto' p (trans_all_opt auto p) ;
-
     (* if [p -ε->* q -a-> r] in [auto], then add [p -a-> r] in [auto'] *)
     List.iter (add_trans_no_eps auto' p << trans_all_opt auto) closures.(p)
-  
   done ;
-  auto' (* some states might be removed *)
+  clean auto'
 
 (*****************************************************************************)
 (*                                   make_det                                *)
@@ -281,13 +345,11 @@ let add_trans_in_table (trans: trans_table) (pset: int list) (c: char) (qset: in
     Hashtbl.add trans pset (new_id (), (c, qset) :: [])
 
 (**
-    [make_det_succ_of_char auto pset c] returns the list [qset] such that
+    [succs_set_for_char auto pset c] returns the list [qset] such that
     [p -c-> q] is a transition in [auto] for [p] in [pset] and [q] in [qset].
 *)
-let make_det_succ_of_char (auto: auto) (pset: int list) (c: char): int list =
-  List.fold_left (fun acc' -> fun q ->
-    union acc' (Auto.trans auto q c)
-  ) [] pset
+let succs_set_for_char (auto: auto) (pset: int list) (c: char): int list =
+  List.fold_left (fun acc' -> fun q -> union_list acc' (Auto.trans auto q c)) [] pset
 
 (**
     Adds all transitions in [trans] for the key [pset].
@@ -299,7 +361,7 @@ let make_det_succ_of_char (auto: auto) (pset: int list) (c: char): int list =
 let make_det_succ (trans: trans_table) (sigma: char list) (auto: auto) (pset: int list): int list list =
   if Hashtbl.mem trans pset then []
   else List.fold_left (fun (acc: int list list) (c: char) ->
-    match make_det_succ_of_char auto pset c with
+    match succs_set_for_char auto pset c with
     | []   -> acc
     | qset -> add_trans_in_table trans pset c qset ; qset :: acc
   ) [] sigma
@@ -313,36 +375,127 @@ let make_det_succ (trans: trans_table) (sigma: char list) (auto: auto) (pset: in
 let make_det_new_auto (trans: trans_table) (auto: auto) : auto =
   
   let auto' = create (Hashtbl.length trans) in
-  Hashtbl.iter (fun qset (p', trs) ->
+  Hashtbl.iter (fun pset (p', trs) ->
     (* set initial/final *)
-    if List.exists (is_initial auto) qset then set_initial auto' p' ;
-    if List.exists (is_final   auto) qset then set_final   auto' p' ;
+    if List.for_all (is_initial auto) pset then set_initial auto' p' ;
+    if List.exists  (is_final   auto) pset then set_final   auto' p' ;
     (* add transitions *)
-    List.iter (fun (c, pset) ->
-      let q' = fst (Hashtbl.find trans pset) in add_trans auto' p' c q'
+    List.iter (fun (c, qset) ->
+      let q' = fst (Hashtbl.find trans qset) in add_trans auto' p' c q'
     ) trs
   ) trans;
   auto'
 
 let make_det (auto: auto) : auto =
 
-  if Auto.is_det auto then Auto.copy auto
-  else
+  if is_det auto then copy auto else
 
-    let auto  = if Auto.has_epsilon auto then remove_eps_trans auto else auto in
-    let n     = size auto in
-    let sigma = sigma_of_auto auto in
-    let trans = Hashtbl.create 16 in
+  let auto  = remove_eps_trans auto in
+  let sigma = sigma_of_auto auto    in
+  let trans = Hashtbl.create 16     in
 
-    let succs p   = make_det_succ trans sigma auto p in
-    let after _ _ = () in
-    let pset      = List.filter (is_initial auto) (range 0 n) in 
-    dfs_iter succs after pset;
+  let succs p   = make_det_succ trans sigma auto p in
+  let after _ _ = () in
 
-    make_det_new_auto trans auto
+  for p = 0 to size auto - 1 do
+    if is_initial auto p then dfs_iter succs after [p] 
+  done ;
+  make_det_new_auto trans auto
 
 (*****************************************************************************)
-(*                                  Acceptance                               *)
+(*                                  complete                                 *)
+(*****************************************************************************)
+
+let complete (sigma: char list) (auto: auto) : auto =
+
+  let sigma = List.sort_uniq Char.compare sigma in
+  let n = size auto in
+  let auto' = create (n + 1) in
+  
+  let bottom = n in
+  List.iter (fun c -> add_trans auto' bottom c bottom) sigma ;
+
+  for p = 0 to n - 1 do
+    if is_initial auto p then set_initial auto' p ;
+    if is_final   auto p then set_final   auto' p ;
+    List.iter (fun c ->
+      match trans auto p c with
+      | [] -> add_trans auto' p c bottom ;
+      | qs -> List.iter (add_trans auto' p c) qs
+    ) sigma
+  done ;
+  auto'
+
+(*****************************************************************************)
+(*                               semi_normalize                              *)
+(*****************************************************************************)
+
+let semi_normalize (auto: auto) : auto = 
+
+  let n = size auto in
+  let auto' = create (n+1) in
+  let map p = p + 1 in
+
+  set_initial auto' 0;
+  for p = 0 to n-1 do
+    if is_initial auto p then add_trans_eps auto' 0 (map p) ;
+    if is_final auto p then set_final auto' (map p) ;
+    let qs = trans_all_opt auto p in
+    List.iter (fun (o, q) -> add_trans_opt auto' (map p) o (map q)) qs
+  done ;
+  auto'
+
+(*****************************************************************************)
+(*                                  normalize                                *)
+(*****************************************************************************)
+
+let normalize (auto: auto) : auto = 
+
+  let n = size auto in
+  let auto' = create (n+2) in
+  let map p = p + 2 in
+
+  set_initial auto' 0;
+  set_final auto' 1;
+  for p = 0 to n-1 do
+    if is_initial auto p then add_trans_eps auto' 0 (map p) ;
+    if is_final   auto p then add_trans_eps auto' (map p) 1 ;
+    let qs = trans_all_opt auto p in
+    List.iter (fun (o, q) -> add_trans_opt auto' (map p) o (map q)) qs
+  done ;
+  auto'
+
+(*****************************************************************************)
+(*                                                                           *)
+(*                              BOOLEAN OPERATIONS                           *)
+(*                                                                           *)
+(*****************************************************************************)
+
+(*****************************************************************************)
+(*                                  Complement                               *)
+(*****************************************************************************)
+
+let complement (auto: auto) : auto =
+  assert (is_det auto) ;
+  let sigma = sigma_of_auto auto in
+  let auto = complete sigma auto in
+  let n = size auto in
+  let auto' = create n in
+  for p = 0 to n - 1 do
+    if      is_initial auto p then set_initial auto' p ;
+    if not (is_final auto p)  then set_final   auto' p ;
+    List.iter (fun (o, q) -> add_trans_opt auto p o q) (trans_all_opt auto p)
+  done ;
+  auto'
+
+(*****************************************************************************)
+(*                                                                           *)
+(*                                   ACCEPTANCE                              *)
+(*                                                                           *)
+(*****************************************************************************)
+
+(*****************************************************************************)
+(*                                Acceptance DFA                             *)
 (*****************************************************************************)
 
 let accept_dfa (auto: auto) (s: string) : bool =
@@ -352,6 +505,10 @@ let accept_dfa (auto: auto) (s: string) : bool =
     q := List.hd (trans auto !q s.[i])
   done;
   is_final auto !q
+
+(*****************************************************************************)
+(*                                Acceptance NFA                             *)
+(*****************************************************************************)
 
 (**
   {b Precondition:} [auto] has no ε-transition.
@@ -403,6 +560,10 @@ let is_empty (auto: auto): bool =
 (*                                    is_full                                *)
 (*****************************************************************************)
 
+(**
+  [is_full_nfa sigma auto] returns [true] iff [auto] is full for the alphabet
+  [sigma].
+*)
 let is_full_nfa (sigma: char list) (auto: auto) : bool =
   (*
     If [auto] if not full, then there exists a word [w]
@@ -413,44 +574,28 @@ let is_full_nfa (sigma: char list) (auto: auto) : bool =
   let words = List.map (String.of_seq  << List.to_seq) css in
   List.for_all (accept_nfa auto) words
 
+(**
+  {b Precondition:} [auto] is a DFA.
+
+  [is_full_dfa] returns [true] iff [auto] is full for the alphabet
+  [sigma].
+*)
 let is_full_dfa (sigma: char list) (auto: auto) : bool =
   assert (sigma = sigma && auto = auto) ;
   assert false
+  (* TODO: is_full_dfa sigma auto iff is_empty (compl sigma auto) *)
+
+let is_full (sigma: char list) (auto: auto) : bool =
+  if is_det auto then is_full_dfa sigma auto else is_full_nfa sigma auto
 
 (*****************************************************************************)
-(*                                  is_complete                              *)
-(*****************************************************************************)
-
-(**
-  [trans_sybmols auto p] returns the list of chararacters [a] such that there
-  exists [q] in [auto] such that [p -a-> q], is alphabetical order.
-*)
-let trans_symbols (auto: auto) (p: int) : char list =
-  trans_all_opt auto p
-  |> List.map fst
-  |> List.filter ((<>) None)
-  |> List.map Option.get
-  |> List.sort_uniq Char.compare
-
-(**
-  [is_complete_state sigma auto p] returns [true] iff for all [a] in [sigma],
-  there exists a state [q] in [auto] such that [p -a-> q].
-*)
-let rec is_complete_state (sigma: char list) (auto: auto) (p: int) : bool =
-  if p = size auto then true
-  else if sigma <> trans_symbols auto p then false
-  else is_complete_state sigma auto (p+1)
-
-let is_complete (sigma: char list) (auto: auto) : bool =
-  let ps = range 0 (size auto) in
-  List.for_all (not << is_complete_state sigma auto) ps
-
-(*****************************************************************************)
-(*                             Boolean operations                            *)
+(*                                                                           *)
+(*                              RATIONAL EXPRESSIONS                         *)
+(*                                                                           *)
 (*****************************************************************************)
 
 (*****************************************************************************)
-(*                     Automata and rational expressions                     *)
+(*                                  thompson                                 *)
 (*****************************************************************************)
 
 let thompson (re: Re.re) : auto =
@@ -460,48 +605,51 @@ let thompson (re: Re.re) : auto =
   let new_state () = incr n; !n in
   let add_trans t = trans := t :: !trans in
   
-  (*
-    [loop r] returns the pair [(q_in, q_out)] of states such that the automaton
-    of [r] as [q_in] as its unique initial state and [q_out] as its unique final
-    state.
-  *)
-  let rec loop (r: Re.re) : int * int =
-    let q_in = new_state () in
+  let rec concat (q_in: int) (r1, r2: Re.re * Re.re) (q_out: int) =
+    let (q_in1, q_out1) = loop r1 in
+    let (q_in2, q_out2) = loop r2 in
+    add_trans (q_in  , None, q_in1) ;
+    add_trans (q_out1, None, q_in2) ;
+    add_trans (q_out2, None, q_out)
+
+  and alt (q_in: int) (r1, r2: Re.re * Re.re) (q_out: int) =
+    let (q_in1, q_out1) = loop r1 in
+    let (q_in2, q_out2) = loop r2 in
+    add_trans (q_in  , None, q_in1) ;
+    add_trans (q_in  , None, q_in2) ;
+    add_trans (q_out1, None, q_out) ;
+    add_trans (q_out2, None, q_out)
+  
+  and star (q_in: int) (r0: Re.re) (q_out: int) =
+    let (q_in0, q_out0) = loop r0 in
+    add_trans (q_in  , None, q_in0 ) ;
+    add_trans (q_in0 , None, q_out0) ;
+    add_trans (q_out0, None, q_in0 ) ;
+    add_trans (q_out0, None, q_out )
+  
+  and loop (r: Re.re) : int * int =
+    let q_in  = new_state () in
     let q_out = new_state () in
     begin match r with
-      | Re.Empty  -> ()
-      | Re.Epsilon -> add_trans (q_in, None, q_out)
-      | Re.Char c -> add_trans (q_in, Some c, q_out)
-      | Re.Concat (r1, r2) -> (
-        let (q_in1, q_out1) = loop r1 in
-        let (q_in2, q_out2) = loop r2 in
-        add_trans (q_in, None, q_in1) ;
-        add_trans (q_out1, None, q_in2) ;
-        add_trans (q_out2, None, q_out)
-      )
-      | Re.Alt (r1, r2) -> (
-        let (q_in1, q_out1) = loop r1 in
-        let (q_in2, q_out2) = loop r2 in
-        add_trans (q_in, None, q_in1) ;
-        add_trans (q_in, None, q_in2) ;
-        add_trans (q_out1, None, q_out) ;
-        add_trans (q_out2, None, q_out)
-      )
-      | Re.Star (r0) -> (
-        let (q_in0, q_out0) = loop r0 in
-        add_trans (q_in, None, q_in0) ;
-        add_trans (q_in0, None, q_out0) ;
-        add_trans (q_out0, None, q_in0) ;
-        add_trans (q_out0, None, q_out)
-      )
+      | Re.Empty           -> ()
+      | Re.Epsilon         -> add_trans (q_in, None, q_out)
+      | Re.Char c          -> add_trans (q_in, Some c, q_out)
+      | Re.Concat (r1, r2) -> concat q_in (r1, r2) q_out
+      | Re.Alt (r1, r2)    -> alt q_in (r1, r2) q_out
+      | Re.Star (r0)       -> star q_in r0 q_out
     end ; (q_in, q_out)
   in
+
   let (q_in, q_out) = loop re in
   let auto = Auto.create (new_state ()) in
   set_initial auto q_in;
   set_final auto q_out;
   List.iter (fun (p, o, q) -> add_trans_opt auto p o q) !trans;
   auto
+
+(*****************************************************************************)
+(*                                 berry-sethi                               *)
+(*****************************************************************************)
 
 let berry_sethi (r: Re.re) : auto =
 
@@ -518,11 +666,11 @@ let berry_sethi (r: Re.re) : auto =
   let add (p: int) (a: char) =
     let i = Char.code a in add_trans auto p arr.(i) i
   in
+  
   List.iter (add 0) first ;
   for p = 1 to n do
     let follow = Re.follow r' (Char.chr p) in
-    List.iter (fun a -> 
-    print_string ("  follow " ^ string_of_int p ^ " -> " ^ (string_of_int (Char.code a)) ^ " (" ^ (String.make 1 arr.(Char.code a)) ^  ")\n") ; add p a) follow
+    List.iter (add p) follow
   done ;
   
   auto

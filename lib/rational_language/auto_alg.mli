@@ -1,4 +1,32 @@
 (*****************************************************************************)
+(*                             Automaton structure                           *)
+(*****************************************************************************)
+
+(* [has_epsilon] and [is_det] are given by the API. *)
+
+(**
+    [is_clean auto] returns [true] iff all states in [auto] are accessible
+    and co-accessible.
+*)
+val is_clean : Auto.auto -> bool
+
+(**
+    [is_semi_normalized auto] returns [true] iff [auto] is semi-normalized.
+*)
+val is_semi_normalized : Auto.auto -> bool
+
+(**
+    [is_normalized auto] returns [true] iff [auto] is normalized.
+*)
+val is_normalized : Auto.auto -> bool
+
+(**
+    [is_complete sigma auto] returns [true] iff [auto] is complete for the
+    alphabet [sigma].
+*)
+val is_complete : char list -> Auto.auto -> bool
+
+(*****************************************************************************)
 (*                                  Modifying                                *)
 (*****************************************************************************)
 
@@ -6,6 +34,18 @@
     [clean auto] returns the pruned automaton of [auto].
 *)
 val clean : Auto.auto -> Auto.auto
+
+(**
+    [remove_eps_trans auto] returns an automaton [auto'] of the same language
+    that [auto] without any ε-transition.
+*)
+val remove_eps_trans : Auto.auto -> Auto.auto
+
+(**
+    [make_det auto] returns a deterministic automaton [auto'] of the same
+    language that [auto].
+*)
+val make_det : Auto.auto -> Auto.auto
 
 (**
     {b Precondition:} [auto] is a NFA, [sigma] has no duplicates.
@@ -25,19 +65,69 @@ val clean : Auto.auto -> Auto.auto
 val complete : char list -> Auto.auto -> Auto.auto
 
 (**
-    [remove_eps_trans auto] returns an automaton [auto'] of the same language
-    that [auto] without any ε-transition.
+    [semi_normalize auto] returns an ε-NFA [auto'] that recognizes the same
+    language, with a unique initial state [0] such that there is no transition
+    [p -o-> 0].
 *)
-val remove_eps_trans : Auto.auto -> Auto.auto
+val semi_normalize : Auto.auto -> Auto.auto
 
 (**
-    [make_det auto] returns a deterministic automaton [auto'] of the same
-    language that [auto].
+    [normalize auto] returns an ε-NFA [auto'] that recognizes the same
+    language, with a unique initial state [0] and a unique final state
+    [1], such there is no transition [p -o-> 0] nor [1 -o-> q].
 *)
-val make_det : Auto.auto -> Auto.auto
+val normalize : Auto.auto -> Auto.auto
 
 (*****************************************************************************)
-(*                              Decision problems                            *)
+(*                             Boolean operations                            *)
+(*****************************************************************************)
+
+(**
+    {b Precondition:} [auto] is a DFA.
+
+    [complement auto] returns an automaton [auto'] that recognizes the
+    complement of [auto]'s language.
+*)
+val complement : Auto.auto -> Auto.auto
+
+(**
+    [union auto1 auto2] returns an automaton [auto'] union of [auto1] and
+    [auto2], such that:
+    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
+    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
+    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
+*)
+(* val union : Auto.auto -> Auto.auto -> Auto.auto *)
+
+(**
+    [union auto1 auto2] returns an automaton [auto'] intersection of [auto1]
+    and [auto2], such that:
+    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
+    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
+    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
+*)
+(* val inter : Auto.auto -> Auto.auto -> Auto.auto *)
+
+(**
+    [diff auto1 auto2] returns an automaton [auto'] such thath
+    [auto'] recognizes the same language that [auto1 \ auto2].
+*)
+(* val diff : Auto.auto -> Auto.auto -> Auto.auto *)
+
+(**
+    [included auto1 auto2] returns [true] iff every word
+    recognized by [auto1] is recognized by [auto2].
+*)
+(* val included : Auto.auto -> Auto.auto -> Auto.auto *)
+
+(**
+    [equiv sigma auto1 auto2] returns [true] iff [auto1] and [auto2]
+    recognizes the same language on the alphabet [sigma].
+*)
+(* val equiv : char list -> Auto.auto -> Auto.auto -> bool *)
+
+(*****************************************************************************)
+(*                             Recognized language                           *)
 (*****************************************************************************)
 
 (**
@@ -66,29 +156,13 @@ val accept_nfa : Auto.auto -> string -> bool
 val is_empty : Auto.auto -> bool
 
 (**
-    {b Precondition :} [auto] is a NFA.
-
-    [is_full_nfa sigma auto] returns [true] iff the language recognized by
+    [is_full sigma auto] returns [true] iff the language recognized by
     [auto] is [sigma*].
 *)
-val is_full_nfa : char list -> Auto.auto -> bool
-
-(**
-    {b Precondition :} [auto] is a DFA.
-
-    [is_full_dfa sigma auto] returns [true] iff the language recognized by
-    [auto] is [sigma*].
-*)
-val is_full_dfa : char list -> Auto.auto -> bool
-
-(**
-    [is_complete sigma auto] returns [true] iff [auto] is complete for the
-    alphabet [sigma].
-*)
-val is_complete : char list -> Auto.auto -> bool
+val is_full : char list -> Auto.auto -> bool
 
 (*****************************************************************************)
-(*                     Automata and rational expressions                     *)
+(*                           Rational expressions                            *)
 (*****************************************************************************)
 
 (**
@@ -102,49 +176,3 @@ val thompson : Re.re -> Auto.auto
     using Berry-Sethi's approch with local languages.
 *)
 val berry_sethi : Re.re -> Auto.auto
-
-(*****************************************************************************)
-(*                             Boolean operations                            *)
-(*****************************************************************************)
-
-(*
-
-(**
-    {b Precondition:} [auto] is a DFA.
-
-    [complement_dfa auto] returns an automaton [auto'] that recognizes the
-    complement of [auto]'s language.
-*)
-val complement_dfa : Auto.auto -> Auto.auto
-
-(**
-    [union auto1 auto2] returns an automaton [auto'] union of [auto1] and
-    [auto2], such that:
-    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
-    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
-    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
-*)
-val union : Auto.auto -> Auto.auto -> Auto.auto
-
-(**
-    [union auto1 auto2] returns an automaton [auto'] intersection of [auto1]
-    and [auto2], such that:
-    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
-    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
-    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
-*)
-val inter : Auto.auto -> Auto.auto -> Auto.auto
-
-(**
-    [diff auto1 auto2] returns an automaton [auto'] such thath
-    [auto'] recognizes the same language that [auto1 \ auto2].
-*)
-val diff : Auto.auto -> Auto.auto -> Auto.auto
-
-(**
-    [equiv sigma auto1 auto2] returns [true] iff [auto1] and [auto2]
-    recognizes the same language on the alphabet [sigma].
-*)
-val equiv : char list -> Auto.auto -> Auto.auto -> bool
-
-*)
