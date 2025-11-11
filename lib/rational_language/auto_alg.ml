@@ -29,7 +29,7 @@ let range (a: int) (b: int) : int list =
 
   {b Complexity:} in [O(n)] time, [n] being the length of the result.
 *)
-let rec union_list (xs: int list) (ys: int list): int list =
+let rec union_list (xs: 'a list) (ys: 'a list): 'a list =
   match xs, ys with
   | [], _ -> ys
   | _, [] -> xs
@@ -121,6 +121,21 @@ let dfs_iter (succs: 'a -> 'a list) (after: 'a -> 'a -> unit) (init: 'a) : unit 
 (*                             AUTOMATON STRUCTURE                           *)
 (*                                                                           *)
 (*****************************************************************************)
+
+(*****************************************************************************)
+(*                                sigma_of_auto                              *)
+(*****************************************************************************)
+
+(**
+  [sigma_of_auto auto] returns the list of chars found on [auto]'s transitions.
+*)
+let sigma_of_auto (auto: auto) : char list =
+  let chars = Array.make 256 false in
+  for q = 0 to size auto - 1 do
+    let ts = fst (trans_all auto q) in
+    List.iter (fun (c, _) -> chars.(Char.code c) <- true) ts;
+  done;
+  List.map Char.chr (fst (split_on_bool chars))
 
 (*****************************************************************************)
 (*                             forward & backward                            *)
@@ -312,27 +327,16 @@ let remove_eps_trans (auto: auto) : auto =
 (*                                   make_det                                *)
 (*****************************************************************************)
 
-(**
-  [sigma_of_auto auto] returns the list of chars found on [auto]'s transitions.
-*)
-let sigma_of_auto (auto: auto) : char list =
-  let chars = Array.make 256 false in
-  for q = 0 to size auto - 1 do
-    let ts = fst (trans_all auto q) in
-    List.iter (fun (c, _) -> chars.(Char.code c) <- true) ts;
-  done;
-  List.map Char.chr (fst (split_on_bool chars))
-
-(**
-  [new_id] returns a unique id per call, starting at [1].
-*)
-let new_id =
-  let c = ref ~-1 in
-  fun () -> incr c; !c
-
 (* pset -> id, [ -a1-> qset1 ; -a2-> qset2 ; ... ] *)
 type trans_table = (int list, int * (char * int list) list) Hashtbl.t
  
+(**
+  [make_det_new_id] returns a unique id per call, starting at [1].
+*)
+let make_det_new_id =
+  let c = ref ~-1 in
+  fun () -> incr c; !c
+
 (**
   [add_trans_in_table trans pset c qset] adds [(c, qset)] in the list
   value of the key [pset] in the table [trans].
@@ -342,7 +346,7 @@ let add_trans_in_table (trans: trans_table) (pset: int list) (c: char) (qset: in
     let id, lst = Hashtbl.find trans pset in
     Hashtbl.replace trans pset (id, (c, qset) :: lst)
   with Not_found ->
-    Hashtbl.add trans pset (new_id (), (c, qset) :: [])
+    Hashtbl.add trans pset (make_det_new_id (), (c, qset) :: [])
 
 (**
     [succs_set_for_char auto pset c] returns the list [qset] such that
@@ -433,17 +437,17 @@ let complete (sigma: char list) (auto: auto) : auto =
 let semi_normalize (auto: auto) : auto = 
 
   let n = size auto in
-  let auto' = create (n+1) in
-  let map p = p + 1 in
+  let offset = 1 in
+  let nauto = create (n + offset) in
 
-  set_initial auto' 0;
-  for p = 0 to n-1 do
-    if is_initial auto p then add_trans_eps auto' 0 (map p) ;
-    if is_final auto p then set_final auto' (map p) ;
+  set_initial nauto 0;
+  for p = 0 to n - 1 do
+    if is_initial auto p then add_trans_eps nauto 0 (p + offset) ;
+    if is_final auto p then set_final nauto (p + offset) ;
     let qs = trans_all_opt auto p in
-    List.iter (fun (o, q) -> add_trans_opt auto' (map p) o (map q)) qs
+    List.iter (fun (o,q) -> add_trans_opt nauto (p + offset) o (q + offset)) qs
   done ;
-  auto'
+  nauto
 
 (*****************************************************************************)
 (*                                  normalize                                *)
@@ -452,41 +456,178 @@ let semi_normalize (auto: auto) : auto =
 let normalize (auto: auto) : auto = 
 
   let n = size auto in
-  let auto' = create (n+2) in
-  let map p = p + 2 in
+  let offset = 2 in
+  let nauto = create (n + offset) in
 
-  set_initial auto' 0;
-  set_final auto' 1;
-  for p = 0 to n-1 do
-    if is_initial auto p then add_trans_eps auto' 0 (map p) ;
-    if is_final   auto p then add_trans_eps auto' (map p) 1 ;
+  set_initial nauto 0;
+  set_final nauto 1;
+  for p = 0 to n - 1 do
+    if is_initial auto p then add_trans_eps nauto 0 (p + offset) ;
+    if is_final   auto p then add_trans_eps nauto (p + offset) 1 ;
     let qs = trans_all_opt auto p in
-    List.iter (fun (o, q) -> add_trans_opt auto' (map p) o (map q)) qs
+    List.iter (fun (o,q) -> add_trans_opt nauto (p + offset) o (q + offset)) qs
   done ;
-  auto'
+  nauto
 
 (*****************************************************************************)
 (*                                                                           *)
 (*                              BOOLEAN OPERATIONS                           *)
-(*                                                                           *)
+(*                                   (part 1)                                *)
 (*****************************************************************************)
+
+(*****************************************************************************)
+(*                                    Product                                *)
+(*****************************************************************************)
+
+(*
+  type trans_table' = (int * int, int * (char option * (int * int)) list) Hashtbl.t
+*)
+
+(**
+  [product_new_id ()] returns a unique id each call, starting at 0.
+*)
+let product_new_id =
+  let c = ref (-1) in
+  fun () -> incr c; !c
+
+(**
+  [product_add_trans trans p' o q'] adds [p' -o-> q'] in the table [trans].
+*)
+let product_add_trans trans (p: int * int) (o: char option) (q: int * int) : unit =
+  let (id, lst) =
+    try Hashtbl.find trans p
+    with Not_found -> (product_new_id (), [])
+  in Hashtbl.replace trans p (id, (o, q) :: lst)
+
+(**
+  [product_succ auto1 auto2 trans p] returns the list of states [q]
+  such that [p1 -o-> q1] or [p2 -o-> q2].
+*)
+let product_succ auto1 auto2 trans (p: int * int) : (int * int) list =
+  let p1, p2 = p in
+  if Hashtbl.mem trans p then []
+  else
+    let trs1 = trans_all_opt auto1 p1 in
+    let trs2 = trans_all_opt auto2 p2 in
+    List.fold_left (fun acc1 (o1, q1) ->
+      List.fold_left (fun acc2 (o2, q2) ->
+        let q = q1, q2 in
+        if o1 = o2 then (product_add_trans trans p o1 q; q :: acc2) else acc2
+      ) acc1 trs2
+    ) [] trs1
+
+(**
+  [product op auto1 auto2] returns the product automaton [nauto] of [auto1]
+  and [auto2], such that [nanuto] accepts [w] iff [auto1] [op] [auto2]
+  accepts [w], and:
+  - if [auto1] or [auto2] are   DFAs, then so if [auto'] ;
+  - if [auto1] or [auto2] are   NFAs, then so is [auto'] ;
+  - if [auto1] or [auto2] are ε-NFAs, then so is [auto'].
+
+  {b Complexity.} In [O(|Q1| * |Q2|)].
+*)
+let product (op: bool -> bool -> bool) (auto1: auto) (auto2: auto) : auto =
+
+  let trans = Hashtbl.create 16 in
+  Hashtbl.add trans (0, 0) (product_new_id (), []) ;
+  let succs = product_succ auto1 auto2 trans in
+  dfs_iter succs (fun _ _ -> ()) (0, 0);
+
+  let nauto = create (Hashtbl.length trans) in
+  Hashtbl.iter (fun (p1, p2) (id, trs) ->
+    if op (is_initial auto1 p1) (is_initial auto2 p2) then set_initial nauto id ;
+    if op (is_final   auto1 p1) (is_final   auto2 p2) then set_final   nauto id ;
+    List.iter (fun (o, q) ->
+      add_trans_opt nauto id o (fst (Hashtbl.find trans q))  
+    ) trs  
+  ) trans ;
+  nauto
 
 (*****************************************************************************)
 (*                                  Complement                               *)
 (*****************************************************************************)
 
-let complement (auto: auto) : auto =
+(**
+  {b Precondition.} [auto] is a DFA.
+
+  [complement sigma auto] returns a DFA [auto'] that recognizes the
+  complement of [auto]'s language with alphabet [sigma].
+
+  {b Complexity.} In [O(|Q|)].
+*)
+let complement_dfa (sigma: char list) (auto: auto) : auto =
   assert (is_det auto) ;
-  let sigma = sigma_of_auto auto in
-  let auto = complete sigma auto in
-  let n = size auto in
-  let auto' = create n in
-  for p = 0 to n - 1 do
-    if      is_initial auto p then set_initial auto' p ;
-    if not (is_final auto p)  then set_final   auto' p ;
-    List.iter (fun (o, q) -> add_trans_opt auto p o q) (trans_all_opt auto p)
+  let nauto = complete sigma auto in
+  for p = 0 to size nauto - 1 do
+    if      is_initial auto p  then set_initial nauto p ;
+    if not (is_final   auto p) then set_final   nauto p ;
   done ;
-  auto'
+  nauto
+
+let complement (sigma: char list) (auto: auto) : auto =
+  complement_dfa sigma (make_det auto)
+
+(*****************************************************************************)
+(*                                 Intersection                              *)
+(*****************************************************************************)
+
+let inter (auto1: auto) (auto2: auto) =
+  product (&&) auto1 auto2
+
+(*****************************************************************************)
+(*                                     Union                                 *)
+(*****************************************************************************)
+
+(**
+  [union_nfa_add auto n offset nauto] adds [auto] of size [n] in [nauto],
+  starting at the state number [offset].
+*)
+let union_nfa_add (auto: auto) (n: int) (offset: int) (nauto: auto) : auto =
+  for p = 0 to n-1 do
+    if is_initial auto p then set_initial nauto (p + offset) ;  
+    if is_final   auto p then set_final   nauto (p + offset) ;
+    let qs = trans_all_opt auto p in
+    List.iter (fun (o, q) -> add_trans_opt auto (p + offset) o (q + offset)) qs ;
+  done ;
+  nauto
+
+(**
+  [union_nfa auto1 auto2] returns a NFA [nauto] that accepts [w] iff [auto1] or
+  [auto2] accepts [w].
+
+  {b Complexity:} In [O(|Q|)].
+*)
+let union_nfa (auto1: auto) (auto2: auto) : auto =
+  let n1, n2 = size auto1, size auto2 in
+  create (n1 + n2)
+  |> union_nfa_add auto1 n1 0
+  |> union_nfa_add auto2 n2 n1
+
+(**
+  {b Precondition:} [auto1] and [auto2] are DFAs.
+
+  [union_dfa auto1 auto2] returns a DFA [nauto] that accepts [w] iff [auto1] or
+  [auto2] accepts [w].
+
+  {b Complexity:} In [O(|Q1| * |Q2|)].
+*)
+let union_dfa (auto1: auto) (auto2: auto) : auto =
+  assert (is_det auto1 && is_det auto2) ;
+  let nsigma = union_list (sigma_of_auto auto1) (sigma_of_auto auto2) in
+  let nauto1 = complete nsigma auto1 in
+  let nauto2 = complete nsigma auto2 in
+  product (||) nauto1 nauto2
+
+let union (auto1: auto) (auto2: auto) : auto =
+  if is_det auto1 && is_det auto2 then union_dfa auto1 auto2
+  else union_nfa auto1 auto2
+  
+(*****************************************************************************)
+(*                                  Difference                               *)
+(*****************************************************************************)
+
+let diff (sigma: char list) (auto1: auto) (auto2: auto) : auto =
+  inter auto1 (complement sigma auto2)
 
 (*****************************************************************************)
 (*                                                                           *)
@@ -570,9 +711,9 @@ let is_full_nfa (sigma: char list) (auto: auto) : bool =
     of size [< size auto] such that [w] is not recognized by
     [auto].
   *)
-  let css = set_power sigma (size auto) in
-  let words = List.map (String.of_seq  << List.to_seq) css in
-  List.for_all (accept_nfa auto) words
+  set_power sigma (size auto)
+  |> List.map (String.of_seq << List.to_seq)
+  |> List.for_all (accept_nfa auto)
 
 (**
   {b Precondition:} [auto] is a DFA.
@@ -581,12 +722,21 @@ let is_full_nfa (sigma: char list) (auto: auto) : bool =
   [sigma].
 *)
 let is_full_dfa (sigma: char list) (auto: auto) : bool =
-  assert (sigma = sigma && auto = auto) ;
-  assert false
-  (* TODO: is_full_dfa sigma auto iff is_empty (compl sigma auto) *)
+  is_empty (complement sigma auto)
 
 let is_full (sigma: char list) (auto: auto) : bool =
   if is_det auto then is_full_dfa sigma auto else is_full_nfa sigma auto
+
+(*****************************************************************************)
+(*                           Inclusion & Equivalence                         *)
+(*****************************************************************************)
+
+let included (auto1: auto) (auto2: auto) : bool =
+  let sigma = sigma_of_auto auto1 in
+  is_empty (diff sigma auto1 auto2)
+
+let equiv (auto1: auto) (auto2: auto) : bool =
+  included auto1 auto2 && included auto2 auto1
 
 (*****************************************************************************)
 (*                                                                           *)

@@ -50,7 +50,7 @@ val make_det : Auto.auto -> Auto.auto
 (**
     {b Precondition:} [auto] is a NFA, [sigma] has no duplicates.
 
-    [complet sigma auto] returns an automaton [auto'] of the same language
+    [complete sigma auto] returns an automaton [auto'] of the same language
     that [auto] and complete for the alphabet [sigma].
 
     {b Postcondition:}
@@ -83,48 +83,37 @@ val normalize : Auto.auto -> Auto.auto
 (*****************************************************************************)
 
 (**
-    {b Precondition:} [auto] is a DFA.
+    [complement sigma auto] returns a DFA [auto'] that recognizes the
+    complement of [auto]'s language with alphabet [sigma].
 
-    [complement auto] returns an automaton [auto'] that recognizes the
-    complement of [auto]'s language.
+    {b Complexity.} In [O(|Q|)] if [auto] is a DFA, otherwise in [O(2^{|Q|})].
 *)
-val complement : Auto.auto -> Auto.auto
-
-(**
-    [union auto1 auto2] returns an automaton [auto'] union of [auto1] and
-    [auto2], such that:
-    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
-    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
-    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
-*)
-(* val union : Auto.auto -> Auto.auto -> Auto.auto *)
+val complement : char list -> Auto.auto -> Auto.auto
 
 (**
     [union auto1 auto2] returns an automaton [auto'] intersection of [auto1]
     and [auto2], such that:
-    - if [auto1] or [auto2] are   DFA, then so if [auto'] ;
-    - if [auto1] or [auto2] are   NFA, then so is [auto'] ;
-    - if [auto1] or [auto2] are ε-NFA, then so is [auto'].
+    - if [auto1] or [auto2] are   DFAs, then so if [auto'] ;
+    - if [auto1] or [auto2] are   NFAs, then so is [auto'] ;
+    - if [auto1] or [auto2] are ε-NFAs, then so is [auto'].
 *)
-(* val inter : Auto.auto -> Auto.auto -> Auto.auto *)
+val inter : Auto.auto -> Auto.auto -> Auto.auto
 
 (**
-    [diff auto1 auto2] returns an automaton [auto'] such thath
-    [auto'] recognizes the same language that [auto1 \ auto2].
+    [union auto1 auto2] returns an automaton [auto'] union of [auto1] and
+    [auto2], such that:
+    - if [auto1] or [auto2] are   DFAs, then so if [auto'] ;
+    - if [auto1] or [auto2] are   NFAs, then so is [auto'] ;
+    - if [auto1] or [auto2] are ε-NFAs, then so is [auto'].
 *)
-(* val diff : Auto.auto -> Auto.auto -> Auto.auto *)
+val union : Auto.auto -> Auto.auto -> Auto.auto
 
 (**
-    [included auto1 auto2] returns [true] iff every word
-    recognized by [auto1] is recognized by [auto2].
+    [diff sigma auto1 auto2] returns an automaton [auto'] such that
+    [auto'] recognizes the same language that [auto1 \ auto2] with
+    alphabet [sigma].
 *)
-(* val included : Auto.auto -> Auto.auto -> Auto.auto *)
-
-(**
-    [equiv sigma auto1 auto2] returns [true] iff [auto1] and [auto2]
-    recognizes the same language on the alphabet [sigma].
-*)
-(* val equiv : char list -> Auto.auto -> Auto.auto -> bool *)
+val diff : char list -> Auto.auto -> Auto.auto -> Auto.auto
 
 (*****************************************************************************)
 (*                             Recognized language                           *)
@@ -160,6 +149,18 @@ val is_empty : Auto.auto -> bool
     [auto] is [sigma*].
 *)
 val is_full : char list -> Auto.auto -> bool
+
+(**
+    [included auto1 auto2] returns [true] iff every word
+    recognized by [auto1] is recognized by [auto2].
+*)
+val included : Auto.auto -> Auto.auto -> bool
+
+(**
+    [equiv auto1 auto2] returns [true] iff [auto1] and [auto2]
+    recognizes the same language.
+*)
+val equiv : Auto.auto -> Auto.auto -> bool
 
 (*****************************************************************************)
 (*                           Rational expressions                            *)

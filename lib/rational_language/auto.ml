@@ -198,7 +198,7 @@ let build_state_mapping smap (size: int) : unit =
 (**
   {b Precondition:} [|arr| = |narr|] and [|narr.(i)| = false] for all [i].
 
-  [rebuild_flag smap arr narr] updates [narr] such that for all states
+  [copy_flags smap arr narr] updates [narr] such that for all states
   [q] between [0] and [|arr|-1], the corresponding state [nq] in [narr]
   is true iff [arr.(q)] is.
 *)
