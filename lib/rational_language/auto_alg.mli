@@ -120,23 +120,13 @@ val diff : char list -> Auto.auto -> Auto.auto -> Auto.auto
 (*****************************************************************************)
 
 (**
-    {b Precondition:} [auto] is deterministic.
-
-    [accept_dfa auto s] returns [true] iff [s] is accepted by [auto].
-
-    {b Complexity:} in [O(|s|)].
-*)
-val accept_dfa : Auto.auto -> string -> bool
-
-(**
-    {b Precondition:} [auto] has no ε-transition.
-
     [accept_nfa auto s] returns [true] iff [s] is accepted by [auto].
 
-    {b Complexity:} in [O((n + |ẟ|) * |s|)], where [|ẟ|] is the
-    number of transitions in [auto].
+    {b Complexity:}
+    - If [auto] is a DFA, in [O(|s|)].
+    - If [auto] is a NFA or an ε-NFA, in [O((|Q| + |ẟ|) * |s|)].
 *)
-val accept_nfa : Auto.auto -> string -> bool
+val accept : Auto.auto -> string -> bool
 
 (**
     [is_empty auto] returns [true] iff the language recognized by [auto] is the

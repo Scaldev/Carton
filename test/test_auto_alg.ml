@@ -472,45 +472,24 @@ let tests_normalize = "normalize", [
 (*****************************************************************************)
 
 (*****************************************************************************)
-(*                                accept_dfa                                 *)
+(*                                     accept                                *)
 (*****************************************************************************)
 
-let test_accept_dfa_0 () =
-  let a = example_auto_4 () in
-  let expected = false in
-  let obtained = accept_dfa a (String.init 10_000 (fun i -> if i mod 2 = 0 then 'a' else 'b')) in
-  Alcotest.(check bool) "" expected obtained
-
-let test_accept_dfa_1 () =
-  let a = example_auto_4 () in
-  let expected = true in
-  let obtained = accept_nfa a (String.init 10_000 (fun i -> if i mod 2 = 0 then 'b' else 'a')) in
-  Alcotest.(check bool) "" expected obtained
-
-let tests_accept_dfa = "accept_dfa", [
-  test_accept_dfa_0;
-  test_accept_dfa_1
-]
-
-(*****************************************************************************)
-(*                                accept_nfa                                 *)
-(*****************************************************************************)
-
-let test_accept_nfa_0 () =
+let test_accept_0 () =
   let a = example_auto_5 () in
   let expected = false in
-  let obtained = accept_nfa a (String.make 10_000 'a') in
+  let obtained = accept a (String.make 10_000 'a') in
   Alcotest.(check bool) "" expected obtained
 
-let test_accept_nfa_1 () =
+let test_accept_1 () =
   let a = example_auto_5 () in
   let expected = true in
-  let obtained = accept_nfa a (String.make 10_000 'a' ^ "b") in
+  let obtained = accept a (String.make 10_000 'a' ^ "b") in
   Alcotest.(check bool) "" expected obtained
 
-let tests_accept_nfa = "accept_nfa", [
-  test_accept_nfa_0;
-  test_accept_nfa_1
+let tests_accept = "accept", [
+  test_accept_0;
+  test_accept_1
 ]
 
 (*****************************************************************************)
@@ -712,18 +691,17 @@ let tests = [
   tests_normalize;
 
   (* Boolean operations        *)
+  (* tests_complement;         *)
   (* tests_union;              *)
   (* tests_inter;              *)
-  (* tests_complement_dfa;     *)
   (* tests_diff;               *)
-  (* tests_included;           *)
-  (* tests_equiv;              *)
 
   (* Acceptance                *)
-  tests_accept_dfa;
-  tests_accept_nfa;
+  tests_accept;
   tests_is_empty;
   (* tests_is_full;            *)
+  (* tests_included;           *)
+  (* tests_equiv;              *)
 
   (* Rational expressions      *)
   tests_thompson;

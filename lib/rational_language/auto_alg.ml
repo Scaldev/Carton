@@ -283,7 +283,6 @@ let eps_closure (auto: auto) : int list array =
 
   let n = size auto in
   let visited = Array.make n [] in
-
   (*
     The ε-closure of [p] is the union of the ε-closure of all [q]
     such that p-ε-> q.
@@ -309,19 +308,21 @@ let add_trans_no_eps (auto: auto) (p: int) (qs: (char option * int) list) =
 
 let remove_eps_trans (auto: auto) : auto =
 
+  if not (has_epsilon auto) then copy auto else
+
   let n = size auto in
-  let auto' = create n in
+  let nauto = create n in
   let closures = eps_closure auto in
 
   for p = 0 to n-1 do
-    if is_initial auto p then set_initial auto' p;
-    if is_final   auto p then set_final   auto' p;
-    (* if [p -a-> q] in [auto], then add [p -a-> q] in [auto'] *)
-    add_trans_no_eps auto' p (trans_all_opt auto p) ;
-    (* if [p -ε->* q -a-> r] in [auto], then add [p -a-> r] in [auto'] *)
-    List.iter (add_trans_no_eps auto' p << trans_all_opt auto) closures.(p)
+    if is_initial auto p then set_initial nauto p;
+    if is_final   auto p then set_final   nauto p;
+    (* if [p -a-> q] in [auto], then add [p -a-> q] in [nauto] *)
+    add_trans_no_eps nauto p (trans_all_opt auto p) ;
+    (* if [p -ε->* q -a-> r] in [auto], then add [p -a-> r] in [nauto] *)
+    List.iter (add_trans_no_eps nauto p << trans_all_opt auto) closures.(p)
   done ;
-  clean auto'
+  clean nauto
 
 (*****************************************************************************)
 (*                                   make_det                                *)
@@ -373,22 +374,22 @@ let make_det_succ (trans: trans_table) (sigma: char list) (auto: auto) (pset: in
 (**
     {b Precondition:} [auto] has no ε-transition.
 
-    [make_det_new_auto trans auto] returns a deterministic automaton [auto']
+    [make_det_new_auto trans auto] returns a deterministic automaton [nauto]
     that has the same language as [auto], using [trans].
 *)
 let make_det_new_auto (trans: trans_table) (auto: auto) : auto =
   
-  let auto' = create (Hashtbl.length trans) in
+  let nauto = create (Hashtbl.length trans) in
   Hashtbl.iter (fun pset (p', trs) ->
     (* set initial/final *)
-    if List.for_all (is_initial auto) pset then set_initial auto' p' ;
-    if List.exists  (is_final   auto) pset then set_final   auto' p' ;
+    if List.for_all (is_initial auto) pset then set_initial nauto p' ;
+    if List.exists  (is_final   auto) pset then set_final   nauto p' ;
     (* add transitions *)
     List.iter (fun (c, qset) ->
-      let q' = fst (Hashtbl.find trans qset) in add_trans auto' p' c q'
+      let q' = fst (Hashtbl.find trans qset) in add_trans nauto p' c q'
     ) trs
   ) trans;
-  auto'
+  nauto
 
 let make_det (auto: auto) : auto =
 
@@ -414,21 +415,21 @@ let complete (sigma: char list) (auto: auto) : auto =
 
   let sigma = List.sort_uniq Char.compare sigma in
   let n = size auto in
-  let auto' = create (n + 1) in
+  let nauto = create (n + 1) in
   
   let bottom = n in
-  List.iter (fun c -> add_trans auto' bottom c bottom) sigma ;
+  List.iter (fun c -> add_trans nauto bottom c bottom) sigma ;
 
   for p = 0 to n - 1 do
-    if is_initial auto p then set_initial auto' p ;
-    if is_final   auto p then set_final   auto' p ;
+    if is_initial auto p then set_initial nauto p ;
+    if is_final   auto p then set_final   nauto p ;
     List.iter (fun c ->
       match trans auto p c with
-      | [] -> add_trans auto' p c bottom ;
-      | qs -> List.iter (add_trans auto' p c) qs
+      | [] -> add_trans nauto p c bottom ;
+      | qs -> List.iter (add_trans nauto p c) qs
     ) sigma
   done ;
-  auto'
+  nauto
 
 (*****************************************************************************)
 (*                               semi_normalize                              *)
@@ -520,9 +521,9 @@ let product_succ auto1 auto2 trans (p: int * int) : (int * int) list =
   [product op auto1 auto2] returns the product automaton [nauto] of [auto1]
   and [auto2], such that [nanuto] accepts [w] iff [auto1] [op] [auto2]
   accepts [w], and:
-  - if [auto1] or [auto2] are   DFAs, then so if [auto'] ;
-  - if [auto1] or [auto2] are   NFAs, then so is [auto'] ;
-  - if [auto1] or [auto2] are ε-NFAs, then so is [auto'].
+  - if [auto1] or [auto2] are   DFAs, then so if [nauto] ;
+  - if [auto1] or [auto2] are   NFAs, then so is [nauto] ;
+  - if [auto1] or [auto2] are ε-NFAs, then so is [nauto].
 
   {b Complexity.} In [O(|Q1| * |Q2|)].
 *)
@@ -550,7 +551,7 @@ let product (op: bool -> bool -> bool) (auto1: auto) (auto2: auto) : auto =
 (**
   {b Precondition.} [auto] is a DFA.
 
-  [complement sigma auto] returns a DFA [auto'] that recognizes the
+  [complement sigma auto] returns a DFA [nauto] that recognizes the
   complement of [auto]'s language with alphabet [sigma].
 
   {b Complexity.} In [O(|Q|)].
@@ -636,7 +637,7 @@ let diff (sigma: char list) (auto1: auto) (auto2: auto) : auto =
 (*****************************************************************************)
 
 (*****************************************************************************)
-(*                                Acceptance DFA                             *)
+(*                                  Acceptance                               *)
 (*****************************************************************************)
 
 let accept_dfa (auto: auto) (s: string) : bool =
@@ -646,10 +647,6 @@ let accept_dfa (auto: auto) (s: string) : bool =
     q := List.hd (trans auto !q s.[i])
   done;
   is_final auto !q
-
-(*****************************************************************************)
-(*                                Acceptance NFA                             *)
-(*****************************************************************************)
 
 (**
   {b Precondition:} [auto] has no ε-transition.
@@ -689,6 +686,10 @@ let accept_nfa (auto: auto) (s: string) : bool =
     if is_initial auto p then ps.(p) <- true;
   done;
   accept_nfa_aux auto s ps 0
+
+let accept (auto: auto) (s: string) : bool =
+  if is_det auto then accept_dfa auto s
+  else accept_nfa (remove_eps_trans auto) s
 
 (*****************************************************************************)
 (*                                    is_empty                               *)
